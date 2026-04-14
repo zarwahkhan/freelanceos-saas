@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+ 
+}
+
+model User {
+  id         String       @id @default(cuid())
+  email      String       @unique
+  password   String
+  name       String?
+  skills     String[]     @default([])
+  hourlyRate Float?
+
+  bio        String?
+experience   String?
+fiverr       String?
+upwork       String?
+portfolio    String?
+
+
+
+  skills      String[] @default([])
+  services    String[] @default([])
+  city        String?
+  experience  String?
+ 
+
+  projects   Project[]
+  clients    Client[]
+  earnings   Earning[]
+  ideas      Idea[]        // ✅ added
+  trust      TrustScore?
+  aiAnalyses AIAnalysis[]
+
+  createdAt  DateTime     @default(now())
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  status      String
+  budget      Float?
+  deadline    DateTime?
+  priority    String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id]) // ✅ FIXED
+
+  tasks    Task[]
+  earnings Earning[] // ✅ linked earnings
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId]) // ✅ performance
+}
+
+model Task {
+  id             String    @id @default(cuid())
+  title          String
+  completed      Boolean   @default(false)
+  priority       String?
+  dueDate        DateTime?
+  estimatedHours Float?
+  
+  
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model Client {
+  id     String  @id @default(cuid())
+  name   String
+  email  String?
+
+  userId String
+  user   User    @relation(fields: [userId], references: [id])
+
+  projects Project[] // ✅ added
+
+  @@index([userId])
+}
+
+model Earnings {
+  id        String   @id @default(cuid())
+  amount    Float
+  source    String
+  platform  String?
+  date      DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id]) // ✅ FIXED
+
+  @@index([userId])
+}
+
+model TrustScore {
+  id     String @id @default(cuid())
+  score  Float
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model AIAnalysis {
+  id        String   @id @default(cuid())
+  type      String
+  result    String
+  input     String?
+  output    String?
+
+  userId String
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Idea {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  skills      String[]
+  effort      String?
+  potential   String?
+  steps       Json?
+  status      String?
+  progress    Int?
+
+  userId String
+  user   User @relation(fields: [userId], references: [id]) // ✅ FIXED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
