@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,14 +16,31 @@ export default function ClientsPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ✅ FIXED FETCH CLIENTS (IMPORTANT FIXES)
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/clients");
+
+      const res = await fetch("/api/clients", {
+        cache: "no-store", // 🔥 fix caching issue
+      });
+
+      if (!res.ok) {
+        console.error("Fetch failed");
+        setClients([]);
+        return;
+      }
+
       const data = await res.json();
 
-      const clientsArray = data?.clients || data || [];
-      setClients(Array.isArray(clientsArray) ? clientsArray : []);
+      // 🔥 HANDLE BOTH RESPONSE TYPES
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.clients)
+        ? data.clients
+        : [];
+
+      setClients(list);
     } catch (err) {
       console.error(err);
       setClients([]);
@@ -35,25 +53,57 @@ export default function ClientsPage() {
     fetchClients();
   }, []);
 
+  // ✅ ADD CLIENT (OPTIMIZED)
   const addClient = async () => {
     if (!name || !email) return;
 
     try {
       setLoading(true);
 
-      await fetch("/api/clients", {
+      const res = await fetch("/api/clients", {
         method: "POST",
         body: JSON.stringify({ name, email }),
         headers: { "Content-Type": "application/json" },
       });
 
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error(data?.error || "Failed to add client");
+        return;
+      }
+
+      // 🔥 INSTANT UI UPDATE (no delay)
+      const newClient = data.client || data;
+      setClients((prev) => [newClient, ...prev]);
+
       setName("");
       setEmail("");
-      fetchClients();
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ DELETE CLIENT
+  const deleteClient = async (id: string) => {
+    try {
+      const res = await fetch("/api/clients", {
+        method: "DELETE",
+        body: JSON.stringify({ id }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) {
+        console.error("Delete failed");
+        return;
+      }
+
+      // 🔥 INSTANT REMOVE FROM UI
+      setClients((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -124,10 +174,21 @@ export default function ClientsPage() {
               key={c.id}
               className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-violet-500 transition"
             >
-              <h4 className="text-lg font-semibold">{c.name}</h4>
-              <p className="text-gray-400 text-sm">{c.email}</p>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="text-lg font-semibold">{c.name}</h4>
+                  <p className="text-gray-400 text-sm">{c.email}</p>
+                </div>
 
-              {/* 🔥 ACTIONS */}
+                {/* 🗑️ DELETE BUTTON */}
+                <button
+                  onClick={() => deleteClient(c.id)}
+                  className="text-red-400 hover:text-red-600 text-lg"
+                >
+                  🗑️
+                </button>
+              </div>
+
               <div className="flex justify-between items-center mt-4">
                 <span className="text-xs text-green-400">
                   Active Client

@@ -121,38 +121,83 @@
 //   }
 // }
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "next-auth/next"; // ✅ FIX
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  // ✅ Get session first
-  const session = await getServerSession(authOptions);
+  try {
+    // ✅ SESSION
+    const session = await getServerSession(authOptions);
 
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // ✅ USER WITH RELATIONS
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: {
+        projects: true,
+        clients: true,
+        earnings: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // 🔥 COUNTS
+    const projectsCount = user.projects?.length || 0;
+    const clientsCount = user.clients?.length || 0;
+
+    // 🔥 TOTAL EARNINGS (IMPORTANT FIX)
+    const totalEarnings =
+      user.earnings?.reduce(
+        (sum, e) => sum + Number(e.amount || 0),
+        0
+      ) || 0;
+
+    // 🔥 SMART SCORE (MORE REALISTIC SaaS LOGIC)
+    let score =
+      projectsCount * 10 +
+      clientsCount * 8 +
+      Math.min(totalEarnings / 100, 40); // cap earnings impact
+
+    // ✅ MAX LIMIT
+    if (score > 100) score = 100;
+
+    // 🔥 TRUST LEVEL
+    let level = "Starter";
+    if (score > 80) level = "Elite";
+    else if (score > 60) level = "Strong";
+    else if (score > 40) level = "Growing";
+
+    // ✅ FINAL RESPONSE (FRONTEND READY)
+    return NextResponse.json({
+      score: Math.round(score),
+
+      level,
+
+      breakdown: {
+        projects: projectsCount,
+        clients: clientsCount,
+        earnings: totalEarnings,
+      },
+    });
+  } catch (error) {
+    console.error("TRUST API ERROR:", error);
+
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    );
   }
-
-  // ✅ Fetch user from DB with relations
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: {
-      projects: true,
-      clients: true,
-      earnings: true,
-    },
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  // ✅ Calculate score
-  const score =
-    (user.projects?.length || 0) * 10 +
-    (user.clients?.length || 0) * 5 +
-    (user.earnings?.length || 0) * 2;
-
-  // ✅ Return JSON
-  return NextResponse.json({ score });
 }
